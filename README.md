@@ -3,7 +3,7 @@
 ### Description
 LoRaDBEdit is a program designed to verify and correct text files already associated with images in a LoRa database. This tool allows users to easily view the text files linked to each image, correct any errors, add new information, or remove unnecessary files.
 
-![LoRaDBEdit Screenshot](assets/image.jpg)
+![LoRaDBEdit Screenshot](asset/image.jpg)
 
 
 ### Features
