@@ -2,7 +2,7 @@ import os
 import sys
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QPushButton, QVBoxLayout, QLabel, QHBoxLayout, 
-    QSizePolicy, QTextEdit, QFileDialog
+    QSizePolicy, QTextEdit, QFileDialog, QMessageBox
 )
 from PyQt5.QtGui import QIcon, QPixmap, QFont
 from PyQt5.QtCore import Qt, QSize
@@ -116,10 +116,29 @@ class ImageTextEditor(QWidget):
         """)
         self.next_button.clicked.connect(self.next_image)
 
+        # Manually Save Button (Yellow)
+        self.save_button = QPushButton("Save Text", self)
+        self.save_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FFC107;
+                color: black;
+                border: none;
+                border-radius: 25px;
+                padding: 10px 20px;
+                min-width: 120px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #FFD54F;
+            }
+        """)
+        self.save_button.clicked.connect(self.save_text)
+
         # Button Layout in a single row
         button_layout.addStretch(1)
         button_layout.addWidget(self.prev_button)  # Red button
         button_layout.addWidget(self.load_button)  # Blue button
+        button_layout.addWidget(self.save_button)  # Yellow button
         button_layout.addWidget(self.next_button)  # Green button
         button_layout.addStretch(1)
 
@@ -131,6 +150,7 @@ class ImageTextEditor(QWidget):
         # Disable navigation buttons initially
         self.prev_button.setEnabled(False)
         self.next_button.setEnabled(False)
+        self.save_button.setEnabled(False)
 
     def _create_info_group(self, label_text, value_text):
         """
@@ -172,10 +192,9 @@ class ImageTextEditor(QWidget):
             return
 
         # Find image and text files
-        self.image_files = [f for f in os.listdir(self.current_folder) 
-                            if f.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif"))]
+        self.image_files = sorted([f for f in os.listdir(self.current_folder) 
+                            if f.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif"))])
         
-        # Modificato per gestire correttamente i file di testo
         self.text_files = {}
         for img in self.image_files:
             base_name = os.path.splitext(img)[0]
@@ -183,10 +202,10 @@ class ImageTextEditor(QWidget):
             txt_path = os.path.join(self.current_folder, txt_file)
             if os.path.exists(txt_path):
                 self.text_files[base_name] = txt_file
-        
-        # Debug print
-        print("Image files:", self.image_files)
-        print("Text files:", self.text_files)
+            else:
+                # Crea un file di testo vuoto se non esiste
+                open(txt_path, 'a').close()
+                self.text_files[base_name] = txt_file
 
         if self.image_files:
             self.current_index = 0
@@ -195,6 +214,7 @@ class ImageTextEditor(QWidget):
             # Enable/disable navigation buttons
             self.prev_button.setEnabled(len(self.image_files) > 1)
             self.next_button.setEnabled(len(self.image_files) > 1)
+            self.save_button.setEnabled(True)
 
     def show_image_and_text(self):
         """
@@ -234,26 +254,48 @@ class ImageTextEditor(QWidget):
 
             # Load associated text file
             text_content = ""
-            if base_name in self.text_files:
-                txt_path = os.path.join(self.current_folder, self.text_files[base_name])
-                try:
-                    with open(txt_path, 'r', encoding='utf-8') as file:
-                        text_content = file.read()
-                    print(f"Loaded text from {txt_path}")
-                except Exception as e:
-                    print(f"Error reading text file {txt_path}: {e}")
+            txt_path = os.path.join(self.current_folder, base_name + ".txt")
+            
+            try:
+                # Usa 'r+' per aprire in lettura e scrittura senza troncare
+                with open(txt_path, 'r+', encoding='utf-8') as file:
+                    text_content = file.read()
+            except FileNotFoundError:
+                # Crea il file se non esiste
+                open(txt_path, 'a').close()
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Could not read text file: {e}")
 
             # Update text edit
             self.text_edit.setPlainText(text_content)
 
         except Exception as e:
-            print(f"Error loading image: {e}")
+            QMessageBox.critical(self, "Error", f"Error loading image: {e}")
+
+    def save_text(self):
+        """
+        Save the current text to the associated text file
+        """
+        if not self.image_files:
+            return
+
+        base_name = os.path.splitext(self.image_files[self.current_index])[0]
+        txt_path = os.path.join(self.current_folder, base_name + ".txt")
+
+        try:
+            # Usa 'w' per sovrascrivere, non 'a' per appendere
+            with open(txt_path, 'w', encoding='utf-8') as file:
+                file.write(self.text_edit.toPlainText())
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not save text file: {e}")
 
     def prev_image(self):
         """
         Navigate to previous image
         """
         if self.current_index > 0:
+            # Salva il testo prima di cambiare immagine
+            self.save_text()
             self.current_index -= 1
             self.show_image_and_text()
 
@@ -262,6 +304,8 @@ class ImageTextEditor(QWidget):
         Navigate to next image
         """
         if self.current_index < len(self.image_files) - 1:
+            # Salva il testo prima di cambiare immagine
+            self.save_text()
             self.current_index += 1
             self.show_image_and_text()
 
